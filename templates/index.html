@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CineMatch — AI Movie Recommender</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --red: #E50914;
+            --red-dim: #8B0000;
+            --black: #0A0A0A;
+            --surface: #111111;
+            --card: #161616;
+            --border: rgba(229, 9, 20, 0.15);
+            --text: #F0F0F0;
+            --muted: #888;
+            --glass: rgba(255, 255, 255, 0.03);
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--black);
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Grain Overlay ─────────────────────────── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' fill='%23E50914' opacity='0.6'/%3E%3C/svg%3E");
+            opacity: 0.04;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Hero Glow ─────────────────────────────── */
+        .glow-orb {
+            position: fixed;
+            top: -200px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 700px;
+            height: 400px;
+            background: radial-gradient(ellipse, rgba(229, 9, 20, 0.12) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ── Nav ───────────────────────────────────── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 48px;
+            background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.8rem;
+            letter-spacing: 3px;
+            color: var(--red);
+            text-shadow: 0 0 30px rgba(229, 9, 20, 0.4);
+        }
+
+        .logo span {
+            color: var(--text);
+        }
+
+        .nav-tag {
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 4px 12px;
+            border-radius: 20px;
+        }
+
+        /* ── Hero ──────────────────────────────────── */
+        .hero {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 80px 24px 60px;
+        }
+
+        .hero-eyebrow {
+            font-size: 0.72rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--red);
+            margin-bottom: 16px;
+        }
+
+        .hero h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(3rem, 8vw, 6rem);
+            line-height: 1;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #fff 0%, #aaa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 16px;
+        }
+
+        .hero p {
+            color: var(--muted);
+            font-size: 1rem;
+            font-weight: 300;
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ── Form Card ─────────────────────────────── */
+        .form-wrapper {
+            position: relative;
+            z-index: 1;
+            max-width: 680px;
+            margin: 0 auto 60px;
+            padding: 0 24px;
+        }
+
+        .form-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 0 60px rgba(229, 9, 20, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 160px;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            color: var(--text);
+            padding: 14px 16px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--red);
+            box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.12);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+            box-shadow: 0 4px 24px rgba(229, 9, 20, 0.3);
+        }
+
+        .btn:hover {
+            background: #ff0f1a;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 32px rgba(229, 9, 20, 0.45);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        /* ── Selected movie pill ───────────────────── */
+        .selected-info {
+            margin-top: 20px;
+            padding: 14px 18px;
+            background: rgba(229, 9, 20, 0.06);
+            border: 1px solid rgba(229, 9, 20, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .selected-info .s-title {
+            font-weight: 600;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .selected-info .s-genre {
+            font-size: 0.78rem;
+            color: var(--red);
+            letter-spacing: 1px;
+        }
+
+        /* ── Error ─────────────────────────────────── */
+        .error-box {
+            max-width: 680px;
+            margin: 0 auto 32px;
+            padding: 0 24px;
+        }
+
+        .error-inner {
+            background: rgba(229, 9, 20, 0.08);
+            border: 1px solid rgba(229, 9, 20, 0.3);
+            border-radius: 8px;
+            padding: 14px 18px;
+            color: #ff6b6b;
+            font-size: 0.9rem;
+        }
+
+        /* ── Results ───────────────────────────────── */
+        .results-section {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto 80px;
+            padding: 0 24px;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .results-header h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 1.6rem;
+            letter-spacing: 2px;
+            color: var(--text);
+        }
+
+        .results-header .count {
+            font-size: 0.78rem;
+            color: var(--muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .results-divider {
+            height: 1px;
+            background: linear-gradient(90deg, var(--red) 0%, transparent 60%);
+            margin-bottom: 28px;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .movie-card {
+            background: var(--card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 24px 20px;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            animation: fadeUp 0.4s both;
+        }
+
+        .movie-card:hover {
+            border-color: rgba(229, 9, 20, 0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(229, 9, 20, 0.1);
+        }
+
+        .movie-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--red), transparent);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .movie-card:hover::before {
+            opacity: 1;
+        }
+
+        .card-num {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 2.5rem;
+            color: rgba(229, 9, 20, 0.12);
+            line-height: 1;
+            margin-bottom: 12px;
+            letter-spacing: 2px;
+        }
+
+        .card-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--text);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .card-genres {
+            font-size: 0.72rem;
+            color: var(--muted);
+            letter-spacing: 1px;
+        }
+
+        /* ── Empty State ───────────────────────────── */
+        .empty-state {
+            text-align: center;
+            padding: 80px 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.4;
+        }
+
+        .empty-state p {
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        /* ── Footer ────────────────────────────────── */
+        footer {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 32px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--muted);
+            font-size: 0.78rem;
+            letter-spacing: 1px;
+        }
+
+        footer span {
+            color: var(--red);
+        }
+
+        /* ── Animations ────────────────────────────── */
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .movie-card:nth-child(1) {
+            animation-delay: 0.05s;
+        }
+
+        .movie-card:nth-child(2) {
+            animation-delay: 0.10s;
+        }
+
+        .movie-card:nth-child(3) {
+            animation-delay: 0.15s;
+        }
+
+        .movie-card:nth-child(4) {
+            animation-delay: 0.20s;
+        }
+
+        .movie-card:nth-child(5) {
+            animation-delay: 0.25s;
+        }
+
+        .movie-card:nth-child(6) {
+            animation-delay: 0.30s;
+        }
+
+        .movie-card:nth-child(7) {
+            animation-delay: 0.35s;
+        }
+
+        .movie-card:nth-child(8) {
+            animation-delay: 0.40s;
+        }
+
+        .movie-card:nth-child(9) {
+            animation-delay: 0.45s;
+        }
+
+        .movie-card:nth-child(10) {
+            animation-delay: 0.50s;
+        }
+
+        @media (max-width: 600px) {
+            nav {
+                padding: 16px 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-card {
+                padding: 24px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="glow-orb"></div>
+
+    <nav>
+        <div class="logo">Cine<span>Match</span></div>
+        <div class="nav-tag">AI · Hybrid Engine</div>
+    </nav>
+
+    <section class="hero">
+        <p class="hero-eyebrow">Powered by Content + Collaborative Filtering</p>
+        <h1>Your Next Obsession Awaits</h1>
+        <p>Enter a movie you love and your user ID. Our hybrid AI engine will surface films built exactly for your
+            taste.</p>
+    </section>
+
+    <div class="form-wrapper">
+        <div class="form-card">
+            <form method="POST">
+                <div class="form-grid">
+                    <div>
+                        <label>Movie Title</label>
+                        <input list="titles" name="title" placeholder="e.g. Toy Story (1995)"
+                            value="{{ selected_title }}" required>
+                        <datalist id="titles">
+                            {% for t in titles %}<option value="{{ t }}">{% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label>User ID</label>
+                        <input type="number" name="user_id" min="1" max="610" placeholder="1 – 610"
+                            value="{{ selected_user }}" required>
+                    </div>
+                </div>
+                <button class="btn" type="submit">Find My Movies</button>
+            </form>
+
+            {% if selected_title and genres %}
+            <div class="selected-info">
+                <div>
+                    <div class="s-title">{{ selected_title }}</div>
+                    <div class="s-genre">{{ genres }}</div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="error-box">
+        <div class="error-inner">⚠ {{ error }}</div>
+    </div>
+    {% endif %}
+
+    {% if recommendations %}
+    <section class="results-section">
+        <div class="results-header">
+            <h2>Recommended For You</h2>
+            <span class="count">{{ recommendations|length }} titles</span>
+        </div>
+        <div class="results-divider"></div>
+        <div class="cards-grid">
+            {% for movie in recommendations %}
+            <div class="movie-card">
+                <div class="card-num">{{ "%02d"|format(loop.index) }}</div>
+                <div class="card-title">{{ movie.title }}</div>
+                <div class="card-genres">{{ movie.genres }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">🎬</div>
+        <p>Your recommendations will appear here.</p>
+    </div>
+    {% endif %}
+
+    <footer>
+        Built with <span>♥</span> using Flask · scikit-learn · MovieLens Dataset
+    </footer>
+
+</body>
+
+</html>
