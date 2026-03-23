@@ -1,7 +1,9 @@
-from flask import Flask, render_template, request, jsonify
-from recommender import hybrid_recommendations, get_all_titles, get_movie_genres
+import requests
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
+
+HF_API = "https://sathwik324-cinematch-api.hf.space"
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -10,7 +12,13 @@ def index():
     selected_title = ""
     selected_user = ""
     genres = ""
-    titles = get_all_titles()
+    titles = []
+
+    try:
+        res = requests.get(f"{HF_API}/titles", timeout=10)
+        titles = res.json().get("titles", [])
+    except:
+        error = "Could not load movie titles. API may be starting up."
 
     if request.method == "POST":
         title   = request.form.get("title", "").strip()
@@ -22,15 +30,17 @@ def index():
             error = "Please enter both a movie title and a user ID."
         else:
             try:
-                recs = hybrid_recommendations(title, int(user_id))
-                if not recs:
+                res = requests.post(
+                    f"{HF_API}/recommend",
+                    json={"title": title, "user_id": int(user_id)},
+                    timeout=30
+                )
+                data = res.json()
+                recommendations = data.get("recommendations", [])
+                if recommendations:
+                    genres = recommendations[0].get("genres", "")
+                if not recommendations:
                     error = "No recommendations found. Try a different title or user ID."
-                else:
-                    recommendations = [
-                        {"title": r, "genres": get_movie_genres(r)}
-                        for r in recs
-                    ]
-                genres = get_movie_genres(title)
             except ValueError:
                 error = "User ID must be a number between 1 and 610."
             except Exception as e:
