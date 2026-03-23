@@ -151,11 +151,48 @@
             box-shadow: 0 0 60px rgba(229, 9, 20, 0.05), 0 24px 48px rgba(0, 0, 0, 0.4);
         }
 
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 160px;
-            gap: 12px;
+        .form-group {
             margin-bottom: 16px;
+            position: relative;
+        }
+
+        /* ── Autocomplete ──────────────────────────── */
+        .suggestions-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 8px;
+            background: #1a1a1a;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-left: 3px solid var(--red);
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            animation: fadeIn 0.2s ease-out forwards;
+        }
+
+        .suggestions-dropdown.active {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 14px 16px;
+            cursor: pointer;
+            color: var(--text);
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         label {
@@ -446,10 +483,6 @@
                 padding: 16px 20px;
             }
 
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
-
             .form-card {
                 padding: 24px 20px;
             }
@@ -476,20 +509,11 @@
     <div class="form-wrapper">
         <div class="form-card">
             <form method="POST">
-                <div class="form-grid">
-                    <div>
-                        <label>Movie Title</label>
-                        <input list="titles" name="title" placeholder="e.g. Toy Story (1995)"
-                            value="{{ selected_title }}" required>
-                        <datalist id="titles">
-                            {% for t in titles %}<option value="{{ t }}">{% endfor %}
-                        </datalist>
-                    </div>
-                    <div>
-                        <label>User ID</label>
-                        <input type="number" name="user_id" min="1" max="610" placeholder="1 – 610"
-                            value="{{ selected_user }}" required>
-                    </div>
+                <div class="form-group">
+                    <label>Movie Title</label>
+                    <input type="text" id="movie-search" name="title" placeholder="e.g. Toy Story (1995)"
+                        value="{{ selected_title }}" autocomplete="off" required>
+                    <div id="suggestions" class="suggestions-dropdown"></div>
                 </div>
                 <button class="btn" type="submit">Find My Movies</button>
             </form>
@@ -504,6 +528,59 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        const searchInput = document.getElementById('movie-search');
+        const suggestionsBox = document.getElementById('suggestions');
+        let timeout = null;
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(timeout);
+            const query = this.value.trim();
+
+            if (query.length < 2) {
+                suggestionsBox.classList.remove('active');
+                suggestionsBox.innerHTML = '';
+                return;
+            }
+
+            timeout = setTimeout(() => {
+                fetch(`/search?q=${encodeURIComponent(query)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        suggestionsBox.innerHTML = '';
+                        const resultsArray = data.results || [];
+                        if (resultsArray.length > 0) {
+                            const results = resultsArray.slice(0, 6);
+                            results.forEach(item => {
+                                const div = document.createElement('div');
+                                div.className = 'suggestion-item';
+                                const title = typeof item === 'string' ? item : item.title;
+                                div.textContent = title;
+                                div.onclick = function() {
+                                    searchInput.value = title;
+                                    suggestionsBox.classList.remove('active');
+                                };
+                                suggestionsBox.appendChild(div);
+                            });
+                            suggestionsBox.classList.add('active');
+                        } else {
+                            suggestionsBox.classList.remove('active');
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Search error:', err);
+                        suggestionsBox.classList.remove('active');
+                    });
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!searchInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.classList.remove('active');
+            }
+        });
+    </script>
 
     {% if error %}
     <div class="error-box">
